@@ -1,189 +1,94 @@
-// import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:mapkit_lite_extension/mapkit_lite_extension.dart';
+import 'package:yandex_mapkit_lite/yandex_mapkit_lite.dart';
 
-// import 'package:flutter/foundation.dart';
-// import 'package:flutter/material.dart';
+class ClusteredMapExample extends StatefulWidget {
+  const ClusteredMapExample({super.key});
 
-// import 'package:mapkit_lite_extension/controller/app_map_controller.dart';
-// import 'package:mapkit_lite_extension/entity/listeners.dart';
-// import 'package:mapkit_lite_extension/entity/map_object.dart';
-// import 'package:mapkit_lite_extension/entity/map_object_collection.dart';
-// import 'package:mapkit_lite_extension/entity/placemark_provider.dart';
-// import 'package:mapkit_lite_extension/utils/latlng_bounds.dart';
-// import 'package:mapkit_lite_extension/widget/app_map.dart';
-// import 'package:yandex_mapkit_lite/yandex_mapkit_lite.dart';
+  @override
+  State<ClusteredMapExample> createState() => _ClusteredMapExampleState();
+}
 
-// abstract mixin class PointableMapObject {
-//   double get latitude;
-//   double get longitude;
-// }
+class _ClusteredMapExampleState extends State<ClusteredMapExample> implements ClusterListener {
+  late final ExtendedMapController _controller;
 
-// final class ClusterableMapWidget<T extends PointableMapObject> extends StatefulWidget {
-//   const ClusterableMapWidget({super.key, required this.objects, required this.onTap});
+  @override
+  void initState() {
+    super.initState();
+    _controller = ExtendedMapController();
 
-//   final List<T> objects;
-//   final FutureOr<void> Function(T item) onTap;
+    // Создаем коллекцию для маркеров
+    final collection = ExtendedMapObjectCollection('markers_collection');
 
-//   @override
-//   State<ClusterableMapWidget<T>> createState() => _ClusterableMapWidgetState<T>();
-// }
+    // Создаем кластер в коллекции
+    final cluster = collection.addPlacemarkCollection(this);
 
-// /// State for widget ClinicsMap
-// class _ClusterableMapWidgetState<T extends PointableMapObject> extends State<ClusterableMapWidget<T>>
-//     implements ClusterListener {
-//   late final _mapController = AppMapController(init: const AppMapState(rotateGesturesEnabled: false));
+    // Добавляем точки в кластер
+    cluster.addPoints([
+      PlacemarkObject(
+        latLng: (latitude: 55.7558, longitude: 37.6173), // Москва
+        icon: PlacemarkIcon.single(
+          PlacemarkIconStyle(
+            image: BitmapDescriptor.fromAssetImage('assets/marker.png'),
+            anchor: const Offset(0.5, 1),
+          ),
+        ),
+      ),
+      PlacemarkObject(
+        latLng: (latitude: 59.9343, longitude: 30.3351), // Санкт-Петербург
+        icon: PlacemarkIcon.single(
+          PlacemarkIconStyle(
+            image: BitmapDescriptor.fromAssetImage('assets/marker.png'),
+            anchor: const Offset(0.5, 1),
+          ),
+        ),
+      ),
+      PlacemarkObject(
+        latLng: (latitude: 56.8280, longitude: 35.8980), // Тверь
+        icon: PlacemarkIcon.single(
+          PlacemarkIconStyle(
+            image: BitmapDescriptor.fromAssetImage('assets/marker.png'),
+            anchor: const Offset(0.5, 1),
+          ),
+        ),
+      ),
+    ]);
 
-//   late final placemarkViewBuilder = SvgPlacemarkProvider(
-//     assetKey: Assets.images.map.clinicPin.keyName,
-//     viewConfiguration: const Size.square(32) * _pixelRation,
-//   );
+    // Добавляем коллекцию в корневую коллекцию контроллера
+    _controller.rootCollection.addCollection(collection);
+  }
 
-//   late final placemarkSelectedViewBuilder = SvgPlacemarkProvider(
-//     assetKey: Assets.images.map.clinicPinSelected.keyName,
-//     viewConfiguration: const Size.square(32) * _pixelRation,
-//   );
+  @override
+  Future<PlacemarkMapObject> onAddCluster(ClusterableMapObject cluster) async {
+    return PlacemarkMapObject(
+      mapId: MapObjectId(cluster.clusterId?.toString() ?? 'cluster_${cluster.markerId}'),
+      point: Point(latitude: cluster.latitude ?? 0, longitude: cluster.longitude ?? 0),
+      opacity: 1,
+      icon: PlacemarkIcon.single(
+        PlacemarkIconStyle(
+          image: BitmapDescriptor.fromAssetImage('assets/cluster_marker.png'),
+          anchor: const Offset(0.5, 1),
+        ),
+      ),
+      text: PlacemarkText(
+        text: cluster.pointsSize?.toString() ?? '0',
+        style: const PlacemarkTextStyle(color: Colors.white, outlineColor: Colors.transparent),
+      ),
+    );
+  }
 
-//   final _clusterPacemakers = <String, SvgPlacemarkProvider>{};
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ExtendedMapWidget(
+        controller: _controller,
+      ),
+    );
+  }
 
-//   late List<T> objects = widget.objects;
-
-//   double _pixelRation = 1;
-
-//   ClusterMapObjectCollection? collection;
-
-//   /* #region Lifecycle */
-
-//   @override
-//   void didChangeDependencies() {
-//     _pixelRation = MediaQuery.devicePixelRatioOf(context);
-//     super.didChangeDependencies();
-//   }
-
-//   @override
-//   void didUpdateWidget(covariant ClusterableMapWidget<T> oldWidget) {
-//     if (!listEquals(oldWidget.objects, widget.objects)) {
-//       objects = widget.objects;
-//       WidgetsBinding.instance.addPostFrameCallback((_) {
-//         drawClusters(objects);
-//       });
-//     }
-//     super.didUpdateWidget(oldWidget);
-//   }
-
-//   @override
-//   void dispose() {
-//     disposeCluster();
-//     for (final entry in _clusterPacemakers.values) {
-//       entry.dispose();
-//     }
-//     placemarkSelectedViewBuilder.dispose();
-//     placemarkViewBuilder.dispose();
-//     _mapController.dispose();
-//     super.dispose();
-//   }
-//   /* #endregion */
-
-//   // remove all map objects
-//   void disposeCluster() {
-//     collection?.onTapCallback = null;
-//     collection = null;
-//   }
-
-//   Future<void> onTapPlacemark(BaseMapObject object, Point point) async {
-//     if (object case final PlacemarkObject placemark) {
-//       if (placemark.userData case final T data) {
-//         collection?.updatePlacemark(placemark.copyWith(icon: await placemarkSelectedViewBuilder.resolve()));
-
-//         final result = widget.onTap(data);
-
-//         if (result is Future<void>) {
-//           await result;
-//         }
-
-//         collection?.updatePlacemark(placemark.copyWith(icon: await placemarkViewBuilder.resolve()));
-//       }
-//     }
-//   }
-
-//   // draw clusters and placemark
-//   void drawClusters(Iterable<PointableMapObject> clinics) {
-//     collection ??= _mapController.mapObjects.addPlacemarkCollection(this);
-//     collection?.onTapCallback ??= onTapPlacemark;
-
-//     if (collection!.collection.isNotEmpty) {
-//       collection?.clean();
-//     }
-
-//     _mapController.use((it) async {
-//       if (clinics.length > 1) {
-//         final bounds = LatLngBounds.fromPoints(
-//           clinics.map((entry) => (latitude: entry.latitude, longitude: entry.longitude)),
-//         );
-
-//         final sw = bounds.southWest;
-//         final ne = bounds.northEast;
-
-//         await it.moveCamera(
-//           CameraUpdate.newGeometry(
-//             Geometry.fromBoundingBox(
-//               BoundingBox(
-//                 northEast: Point(latitude: ne.latitude, longitude: ne.longitude),
-//                 southWest: Point(latitude: sw.latitude, longitude: sw.longitude),
-//               ),
-//             ),
-//           ),
-//         );
-
-//         final position = await it.getCameraPosition();
-//         await it.moveCamera(CameraUpdate.zoomTo(position.zoom - 0.5));
-//       } else {
-//         final first = clinics.first;
-//         await it.moveCamera(
-//           CameraUpdate.newCameraPosition(
-//             CameraPosition(target: Point(latitude: first.latitude, longitude: first.longitude)),
-//           ),
-//         );
-//         await it.moveCamera(CameraUpdate.zoomTo(15));
-//       }
-
-//       final placemark = await placemarkViewBuilder.resolve();
-//       collection?.addPoints(
-//         clinics.map(
-//           (entry) => PlacemarkObject(
-//             latLng: (latitude: entry.latitude, longitude: entry.longitude),
-//             icon: placemark,
-//             userData: entry,
-//           ),
-//         ),
-//       );
-//       await collection?.attachCluster(await it.getVisibleRegion(), await it.getCameraPosition());
-//     });
-//   }
-
-//   @override
-//   Future<PlacemarkMapObject> onAddCluster(ClusterableMapObject cluster) async {
-//     final provider =
-//         _clusterPacemakers[cluster.clusterId!.toString()] ??= SvgPlacemarkProvider(
-//           assetKey: Assets.images.map.cluster.keyName,
-//           viewConfiguration: const Size.square(48) * _pixelRation,
-//         );
-
-//     return PlacemarkMapObject(
-//       mapId: MapObjectId(cluster.clusterId!.toString()),
-//       point: cluster.location!.toObject(),
-//       opacity: 1,
-//       icon: await provider.resolve(),
-//       text: PlacemarkText(
-//         text: cluster.pointsSize!.toString(),
-//         style: const PlacemarkTextStyle(color: Colors.white, outlineColor: Colors.transparent),
-//       ),
-//     );
-//   }
-
-//   @override
-//   Widget build(BuildContext context) => AppMapWidget(
-//     controller: _mapController,
-//     onMapCreated: () {
-//       drawClusters(objects);
-//     },
-//   );
-// }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}

@@ -74,7 +74,7 @@ class _MapScreenState extends State<MapScreen> {
       ),
     );
     
-    _controller.mapObjects.addPlacemark(marker);
+    _controller.rootCollection.addPlacemark(marker);
   }
 
   @override
@@ -123,6 +123,7 @@ controller.nightModeEnabled = true;
 Коллекция для управления объектами на карте. Позволяет добавлять маркеры и кластеры.
 
 ```dart
+final controller = ExtendedMapController();
 final collection = ExtendedMapObjectCollection('my_collection');
 
 // Добавление простого маркера
@@ -136,6 +137,7 @@ final marker = PlacemarkObject(
 );
 
 collection.addPlacemark(marker);
+controller.rootCollection.addCollection(collection);
 
 // Создание кластера
 final cluster = collection.addPlacemarkCollection(
@@ -146,6 +148,21 @@ final cluster = collection.addPlacemarkCollection(
     radius: 150,
   ),
 );
+
+// Добавление точек в кластер
+cluster.addPoints([
+  PlacemarkObject(
+    latLng: (latitude: 55.7558, longitude: 37.6173),
+    icon: PlacemarkIcon.single(
+      PlacemarkIconStyle(
+        image: BitmapDescriptor.fromAssetImage('assets/marker.png'),
+      ),
+    ),
+  ),
+]);
+
+// Текущие дерево коллекций
+// root_collection -> my_collection -> cluster
 ```
 
 ### PlacemarkProvider

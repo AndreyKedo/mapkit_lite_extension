@@ -28,7 +28,7 @@ final class ExtendedMapWidget extends StatefulWidget {
 class _ExtendedMapWidgetState extends State<ExtendedMapWidget> {
   late var _controller = widget.controller ?? ExtendedMapController();
 
-  late var _listenable = Listenable.merge([_controller.rootCollection, _controller]);
+  late var _listenable = Listenable.merge([_controller.mapObjectTree, _controller]);
 
   /* #region Lifecycle */
   @override
@@ -40,7 +40,7 @@ class _ExtendedMapWidgetState extends State<ExtendedMapWidget> {
       }
 
       _controller = widget.controller ?? ExtendedMapController();
-      _listenable = Listenable.merge([_controller.rootCollection, _controller]);
+      _listenable = Listenable.merge([_controller.mapObjectTree, _controller]);
     }
   }
 

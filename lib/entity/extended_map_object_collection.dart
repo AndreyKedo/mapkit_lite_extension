@@ -5,16 +5,63 @@ import 'package:flutter/foundation.dart' as framework show ChangeNotifier, listE
 import 'package:mapkit_lite_extension/entity/listeners.dart';
 import 'package:mapkit_lite_extension/entity/map_object.dart';
 import 'package:mapkit_lite_extension/controller/controller.dart';
+import 'package:meta/meta.dart';
 import 'package:uuid/v4.dart';
 
 import 'package:yandex_mapkit_lite/yandex_mapkit_lite.dart';
 
-abstract class ListenableMapObjectCollection extends framework.ChangeNotifier with Controller {
+const kRootCollectionId = 'root_collection';
+
+abstract class TreeNotifierHolder {
+  @protected
+  @visibleForTesting
+  Controller? notifier;
+
+  @protected
+  void attachNotifier(TreeNotifierHolder holder) {
+    notifier = holder.notifier;
+    // Распространяем notifier на все дочерние элементы
+    propagateNotifier();
+  }
+
+  @protected
+  void notifyTree() {
+    notifier?.notifyListeners();
+  }
+
+  @protected
+  void detachNotifier() {
+    notifier = null;
+    // Распространяем null notifier на все дочерние элементы
+    propagateNotifier();
+  }
+
+  /// Распространяет notifier на все дочерние элементы
+  @protected
+  void propagateNotifier() {
+    // Базовая реализация - пустая
+    // Должна быть переопределена в подклассах, если есть дочерние элементы
+  }
+}
+
+class MapCollectionTree extends framework.ChangeNotifier with Controller {
+  MapCollectionTree([String? rootId]) : root = ExtendedMapObjectCollection(rootId ?? kRootCollectionId) {
+    root.notifier = this;
+  }
+
+  final ExtendedMapObjectCollection root;
+
+  List<MapObject> get mapObjects => UnmodifiableListView(root.children);
+}
+
+abstract class ListenableMapObjectCollection extends TreeNotifierHolder {
   ListenableMapObjectCollection(this.id);
 
   final String id;
 
   Iterable<MapObject<Object?>> get children;
+
+  void dispose() => detachNotifier();
 }
 
 /// Map objects collection.
@@ -45,7 +92,7 @@ class ExtendedMapObjectCollection extends ListenableMapObjectCollection {
   }) {
     final cluster = ExtendedClusteredMapObjectCollection(const UuidV4().generate(), WeakReference(listener), options);
 
-    cluster.addListener(notifyListeners);
+    cluster.attachNotifier(this);
 
     return _innerCollection[cluster.id] = cluster;
   }
@@ -54,42 +101,53 @@ class ExtendedMapObjectCollection extends ListenableMapObjectCollection {
   void addPlacemark(PlacemarkObject object) {
     _objects[object] = object.toObject();
 
-    notifyListeners();
+    notifyTree();
   }
 
   /// Remove map object
   void removeMapObject(String id) {
     _objects.removeWhere((entry, _) => entry.id == id);
-    notifyListeners();
+    notifyTree();
   }
 
   void addCollection(ListenableMapObjectCollection collection) {
     _innerCollection[collection.id] = collection;
 
-    collection.addListener(notifyListeners);
+    collection.attachNotifier(this);
 
-    notifyListeners();
+    notifyTree();
   }
 
   /// Remove child collection by [id].
   void removeCollection(String id) {
+    assert(this.id != id, 'Cannot remove this collection');
     final collection = _innerCollection.remove(id);
 
-    collection?.removeListener(notifyListeners);
+    collection?.detachNotifier();
     collection?.dispose();
 
-    notifyListeners();
+    notifyTree();
   }
 
   @override
   void dispose() {
     for (final entry in _innerCollection.values) {
-      entry.removeListener(notifyListeners);
+      entry.detachNotifier();
       entry.dispose();
     }
     _innerCollection.clear();
     _objects.clear();
     super.dispose();
+  }
+
+  @override
+  @protected
+  void propagateNotifier() {
+    super.propagateNotifier();
+    // Распространяем notifier на все дочерние коллекции
+    for (final collection in _innerCollection.values) {
+      collection.attachNotifier(this);
+    }
   }
 }
 
@@ -183,7 +241,7 @@ class ExtendedClusteredMapObjectCollection extends ListenableMapObjectCollection
       });
       _points.remove(object);
       _points.add(object);
-      notifyListeners();
+      notifyTree();
     }
   }
 
@@ -193,7 +251,7 @@ class ExtendedClusteredMapObjectCollection extends ListenableMapObjectCollection
     _clusterableObjects = const [];
     _mapObjects = _emptyObjectsCollection;
     _cluster = null;
-    notifyListeners();
+    notifyTree();
   }
 
   Future<void> attachCluster(VisibleRegion visibleRegion, CameraPosition cameraPosition) async {
@@ -229,7 +287,7 @@ class ExtendedClusteredMapObjectCollection extends ListenableMapObjectCollection
 
     _mapObjects = List.generate(objects.length, objects.elementAt, growable: false);
 
-    notifyListeners();
+    notifyTree();
   }
 
   @override

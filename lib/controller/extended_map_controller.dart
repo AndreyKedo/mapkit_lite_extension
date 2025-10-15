@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mapkit_lite_extension/entity/extended_map_object_collection.dart';
@@ -102,9 +101,10 @@ class ExtendedMapController extends ValueNotifier<ExtendedMapState> {
     }
   }
 
-  late final rootCollection = ExtendedMapObjectCollection('root_collection');
+  late final mapObjectTree = MapCollectionTree();
+  late final rootCollection = mapObjectTree.root;
 
-  List<MapObject> get mapObjects => UnmodifiableListView(rootCollection.children);
+  List<MapObject> get mapObjects => mapObjectTree.mapObjects;
 
   Future<String>? _style;
   YandexMapController? _controller;
